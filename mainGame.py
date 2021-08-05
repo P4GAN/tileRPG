@@ -47,7 +47,9 @@ def gameLoop():
         keys = pygame.key.get_pressed() 
 
         if keys[pygame.K_UP] or keys[pygame.K_w] :
+            pass
         if keys[pygame.K_DOWN] or keys[pygame.K_s]:
+            pass
 
         mouseX, mouseY = pygame.mouse.get_pos()
 
@@ -57,7 +59,7 @@ def gameLoop():
             if event.type == pygame.QUIT:
                 pygame.quit()
                 quit()
-             if event.type == pygame.MOUSEBUTTONDOWN:
+            if event.type == pygame.MOUSEBUTTONDOWN:
                 pass 
 
         #display screen 60 times per second
