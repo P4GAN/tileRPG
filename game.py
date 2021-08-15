@@ -3,6 +3,10 @@ from pygame.locals import *
 import math
 import time
 import random
+import os
+import json
+
+sourceFileDir = os.path.dirname(os.path.abspath(__file__))
 
 flags =  DOUBLEBUF
 
@@ -16,7 +20,7 @@ centerY = displayHeight/2
 tileSize = 50
 
 gameDisplay = pygame.display.set_mode((displayWidth, displayHeight), flags)
-backgroundImage = pygame.image.load("background.png").convert()
+backgroundImage = pygame.image.load(os.path.join(sourceFileDir,"background.png")).convert()
 
 movingUp = False
 movingDown = False
@@ -40,7 +44,7 @@ class Player():
         self.velocityX = 0
         self.velocityY = 0
         self.inventory = []
-        self.image = pygame.image.load("character.png")
+        self.image = pygame.image.load(os.path.join(sourceFileDir,"character.png"))
         self.speed = 100
         self.rect = pygame.Rect(x, y, 60, 63)
         self.angle = 0
@@ -99,7 +103,7 @@ player = Player(500, 50)
 
 class Projectile():
     def __init__(self, x, y, speed, angle):
-        self.image = pygame.transform.rotate(pygame.image.load("projectile.png"), angle)
+        self.image = pygame.transform.rotate(pygame.image.load(os.path.join(sourceFileDir,"projectile.png")), angle)
         self.rect = self.image.get_rect(center = (x, y))
         print(centerX, centerY)
         print(pygame.mouse.get_pos())
@@ -121,7 +125,7 @@ class Projectile():
 
 class Tile():
     def __init__(self, x, y):
-        self.image = pygame.image.load("tile.png")
+        self.image = pygame.image.load(os.path.join(sourceFileDir,"tile.png"))
         self.rect = pygame.Rect(x, y, tileSize, tileSize)
         tiles.append(self)
     def update(self):
@@ -136,7 +140,7 @@ class Enemy():
     def __init__(self, x, y):
         self.velocityX = 0
         self.velocityY = 0
-        self.image = pygame.image.load("enemy.png")
+        self.image = pygame.image.load(os.path.join(sourceFileDir,"enemy.png"))
         self.speed = 2
         self.rect = pygame.Rect(x, y, 36, 45)
         self.angle = 0
