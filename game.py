@@ -45,7 +45,7 @@ class Player():
         self.velocityY = 0
         self.inventory = []
         self.image = pygame.image.load(os.path.join(sourceFileDir,"character.png"))
-        self.speed = 100
+        self.speed = 5
         self.rect = pygame.Rect(x, y, 60, 63)
         self.angle = 0
         self.movingUp = False
@@ -53,6 +53,7 @@ class Player():
         self.movingRight = False
         self.movingLeft = False
         self.health = 100
+    
     def update(self):
         if self.velocityY > 0:
             self.velocityY -= 1
@@ -70,25 +71,31 @@ class Player():
             self.velocityX += 2
         if self.movingLeft and self.velocityX >= -self.speed:
             self.velocityX -= 2
+        
+        #print(self.velocityX)
         self.rect.x += self.velocityX
+        
         for tile in tiles:
             if self.rect.colliderect(tile.rect):
                 if self.velocityX > 0:
                     self.rect.right = tile.rect.left
                 if self.velocityX < 0:
                     self.rect.left = tile.rect.right
+        
         self.rect.y += self.velocityY
+        
         for tile in tiles:
             if self.rect.colliderect(tile.rect):
                 if self.velocityY > 0:
                     self.rect.bottom = tile.rect.top
                 if self.velocityY < 0:
                     self.rect.top = tile.rect.bottom
+        
         center = self.rect.center
         newImage = pygame.transform.rotate(self.image, self.angle)
-        newRect = newImage.get_rect(center=(centerX, centerY))
+        newRect = newImage.get_rect(center=(self.rect.x, self.rect.y))
         gameDisplay.blit(newImage, newRect)
-        pygame.draw.circle(gameDisplay, (0, 0, 0), (int(centerX), int(centerY)), 5)
+    
     def meleeAttack(self, angle, attackRange, damage):
         for enemy in enemies:
             if (enemy.rect.centerx - player.rect.centerx)**2 + (enemy.rect.centery - player.rect.centery)**2 < attackRange**2:
@@ -103,33 +110,40 @@ player = Player(500, 50)
 
 class Projectile():
     def __init__(self, x, y, speed, angle):
-        self.image = pygame.transform.rotate(pygame.image.load(os.path.join(sourceFileDir,"projectile.png")), angle)
+        posX, posY = pygame.mouse.get_pos()
+        self.angle = -math.radians(angle-360)
+        self.image = pygame.transform.rotate(pygame.image.load(os.path.join(sourceFileDir,"projectile.png")), self.angle)
         self.rect = self.image.get_rect(center = (x, y))
         print(centerX, centerY)
-        print(pygame.mouse.get_pos())
         print(angle)
-        self.angle = -math.radians(angle-360)
+        self.x = x
+        self.y = y
         self.velocityX = math.cos(self.angle) * speed
         self.velocityY = math.sin(self.angle) * speed
+        self.velocityx = speed
+        self.velocityy = speed * ((posY-self.y)/(posX-self.x))
         self.speed = speed
         projectiles.append(self)
     def update(self):
-        self.rect.centerx += self.velocityX
-        self.rect.centery += self.velocityY
+        self.x += self.velocityx
+        self.y += self.velocityy
         for tile in tiles:
             if tile.rect.left < self.rect.centerx < tile.rect.right and tile.rect.top < self.rect.centery < tile.rect.bottom:
                 projectiles.remove(self)
-        gameDisplay.blit(self.image, (centerX - player.rect.width/2 + (self.rect.x - player.rect.x), centerY - player.rect.height/2 + (self.rect.y - player.rect.y)))
-        pygame.draw.circle(gameDisplay, (0, 0, 0), (int(centerX - player.rect.width/2 + (self.rect.centerx - player.rect.x)), int(centerY - player.rect.height/2 + (self.rect.centery - player.rect.y))), 5)
+        #gameDisplay.blit(self.image, (centerX - player.rect.width/2 + (self.rect.centerx - player.rect.x), centerY - player.rect.height/2 + (self.rect.centery - player.rect.y)))
+        #pygame.draw.circle(gameDisplay, (90, 0, 0), (int(centerX - player.rect.width/2 + (self.rect.centerx - player.rect.x)), int(centerY - player.rect.height/2 + (self.rect.centery - player.rect.y))), 5)
+        pygame.draw.circle(gameDisplay, (90,0,0), (int(self.x), int(self.y)), 5)
 
 
 class Tile():
     def __init__(self, x, y):
         self.image = pygame.image.load(os.path.join(sourceFileDir,"tile.png"))
         self.rect = pygame.Rect(x, y, tileSize, tileSize)
+        self.x = x
+        self.y = y
         tiles.append(self)
     def update(self):
-        gameDisplay.blit(self.image, (centerX - player.rect.width/2 + (self.rect.x - player.rect.x), centerY - player.rect.height/2 + (self.rect.y - player.rect.y)))
+        gameDisplay.blit(self.image, (self.x, self.y))
 
     '''displayX = centerX + (self. rect.x - player.rect.x)
     displayY = centerY + (self.rect.y - player.rect.x)

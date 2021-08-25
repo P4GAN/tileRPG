@@ -30,6 +30,8 @@ waterImage = pygame.image.load(os.path.join(sourceFileDir, "water.png"))
 
 font = pygame.font.SysFont('Calibri', 15)
 
+gameDisplay = pygame.display.set_mode((displayWidth, displayHeight), DOUBLEBUF)
+
 def displayText(text, x, y):
     surface = font.render(text, True, (0, 0, 0))
     gameDisplay.blit(surface, (x, y))
