@@ -29,7 +29,8 @@ movingRight = False
 
 enemies = []
 tiles = []
-projectiles = []
+playerProjectiles = []
+enemyProjectiles = []
 
 font = pygame.font.SysFont('Comic Sans MS', 50)
 
@@ -58,11 +59,11 @@ class Player():
     def update(self):
         if self.velocityY > 0:
             self.velocityY -= 1
-        if self.velocityY < 0:
+        elif self.velocityY < 0:
             self.velocityY += 1
         if self.velocityX > 0:
             self.velocityX -= 1
-        if self.velocityX < 0:
+        elif self.velocityX < 0:
             self.velocityX += 1
         if self.movingUp and self.velocityY >= -self.speed:
             self.velocityY -= 2
@@ -73,8 +74,14 @@ class Player():
         if self.movingLeft and self.velocityX >= -self.speed:
             self.velocityX -= 2
         
+        print(self.velocityX, self.velocityY)
         self.rect.move_ip(self.velocityX, self.velocityY)
 
+        '''for tile in tiles:
+            if self.rect.colliderect(tile.rect):
+                self.velocityX = 0
+                self.velocityY = -20''' # boost pad, if set both to 0, becomes sand
+                
         for tile in tiles:
             if self.rect.colliderect(tile.rect):
                 if self.velocityX > 0:
@@ -107,7 +114,7 @@ player = Player(500, 50)
 
 
 class Projectile():
-    def __init__(self, x, y, speed, angle):
+    def __init__(self, x, y, speed, angle, projectile):
         posX, posY = pygame.mouse.get_pos()
         self.angle = -math.radians(angle-360)
         self.image = pygame.transform.rotate(pygame.image.load(os.path.join(sourceFileDir,"projectile.png")), self.angle)
@@ -120,13 +127,13 @@ class Projectile():
         self.velocityy = self.speed * math.sin(self.angle)
         self.x = x + (self.velocityx * 2)
         self.y = y + (self.velocityy * 2)
-        projectiles.append(self)
+        projectile.append(self)
     def update(self):
         self.x += self.velocityx
         self.y += self.velocityy
         for tile in tiles:
             if tile.rect.left < self.rect.centerx < tile.rect.right and tile.rect.top < self.rect.centery < tile.rect.bottom:
-                projectiles.remove(self)
+                projectile.remove(self)
         #gameDisplay.blit(self.image, (centerX - player.rect.width/2 + (self.rect.centerx - player.rect.x), centerY - player.rect.height/2 + (self.rect.centery - player.rect.y)))
         #pygame.draw.circle(gameDisplay, (90, 0, 0), (int(centerX - player.rect.width/2 + (self.rect.centerx - player.rect.x)), int(centerY - player.rect.height/2 + (self.rect.centery - player.rect.y))), 5)
         pygame.draw.circle(gameDisplay, (90,0,0), (int(self.x), int(self.y)), 5)
@@ -230,7 +237,7 @@ while True:
             if event.key == pygame.K_LSHIFT:
                 player.speed *= 2
             if event.key == pygame.K_p:
-                Projectile(player.rect.centerx, player.rect.centery, 10, player.angle)
+                Projectile(player.rect.centerx, player.rect.centery, 10, player.angle, playerProjectiles)
         if event.type == pygame.MOUSEBUTTONDOWN:
             player.meleeAttack(player.angle, 100, 2)
 
@@ -254,7 +261,9 @@ while True:
         tile.update()
     for enemy in enemies:
         enemy.update()
-    for projectile in projectiles:
+    for projectile in playerProjectiles:
+        projectile.update()
+    for projectile in enemyProjectiles:
         projectile.update()
     pygame.display.update()
     #print(clock.get_fps())
