@@ -47,6 +47,7 @@ class Player():
         self.image = pygame.image.load(os.path.join(sourceFileDir,"character.png"))
         self.speed = 5
         self.rect = pygame.Rect(x, y, 60, 63)
+        print(self.rect)
         self.angle = 0
         self.movingUp = False
         self.movingDown = False
@@ -72,28 +73,25 @@ class Player():
         if self.movingLeft and self.velocityX >= -self.speed:
             self.velocityX -= 2
         
-        #print(self.velocityX)
-        self.rect.x += self.velocityX
-        
+        self.rect.move_ip(self.velocityX, self.velocityY)
+
         for tile in tiles:
             if self.rect.colliderect(tile.rect):
                 if self.velocityX > 0:
                     self.rect.right = tile.rect.left
                 if self.velocityX < 0:
                     self.rect.left = tile.rect.right
-        
-        self.rect.y += self.velocityY
-        
+
         for tile in tiles:
             if self.rect.colliderect(tile.rect):
                 if self.velocityY > 0:
                     self.rect.bottom = tile.rect.top
                 if self.velocityY < 0:
                     self.rect.top = tile.rect.bottom
-        
+
         center = self.rect.center
         newImage = pygame.transform.rotate(self.image, self.angle)
-        newRect = newImage.get_rect(center=(self.rect.x, self.rect.y))
+        newRect = newImage.get_rect(center=(self.rect.centerx, self.rect.centery))
         gameDisplay.blit(newImage, newRect)
     
     def meleeAttack(self, angle, attackRange, damage):
@@ -114,15 +112,14 @@ class Projectile():
         self.angle = -math.radians(angle-360)
         self.image = pygame.transform.rotate(pygame.image.load(os.path.join(sourceFileDir,"projectile.png")), self.angle)
         self.rect = self.image.get_rect(center = (x, y))
-        print(centerX, centerY)
-        print(angle)
-        self.x = x
-        self.y = y
-        self.velocityX = math.cos(self.angle) * speed
-        self.velocityY = math.sin(self.angle) * speed
-        self.velocityx = speed
-        self.velocityy = speed * ((posY-self.y)/(posX-self.x))
         self.speed = speed
+        self.distx = posX - x
+        self.disty = posY - y
+        self.angle = math.atan2(self.disty, self.distx)
+        self.velocityx = self.speed * math.cos(self.angle)
+        self.velocityy = self.speed * math.sin(self.angle)
+        self.x = x + (self.velocityx * 2)
+        self.y = y + (self.velocityy * 2)
         projectiles.append(self)
     def update(self):
         self.x += self.velocityx
@@ -206,7 +203,7 @@ class Enemy():
                     self.rect.top = tile.rect.bottom
         self.angle = -math.atan2(self.velocityY, self.velocityX) * 57.3
         newImage = pygame.transform.rotate(self.image, self.angle)
-        gameDisplay.blit(newImage, (centerX - player.rect.width/2 + (self.rect.x - player.rect.x), centerY - player.rect.height/2 + (self.rect.y - player.rect.y)))
+        gameDisplay.blit(newImage, (self.rect.x, self.rect.y))
 
 tile = Tile(500, 500)
 tile2 = Tile(200, 500)
@@ -249,7 +246,7 @@ while True:
             if event.key == pygame.K_LSHIFT:
                 player.speed /= 2
     mouseX, mouseY = pygame.mouse.get_pos()
-    player.angle = 360 - math.degrees(math.atan2(mouseY - centerY, mouseX - centerX))
+    player.angle = 360 - math.degrees(math.atan2(mouseY - player.rect.centery, mouseX - player.rect.centerx))
 
     gameDisplay.blit(backgroundImage, (0, 0))
     player.update()
