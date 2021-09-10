@@ -8,4 +8,4 @@ click to shoot
 
 head towards the arrow to go to the portal and go to the next stage and level up
 
-oh yeah and open main.py
+oh yeah and open game.py
