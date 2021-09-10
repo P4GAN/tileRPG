@@ -1,0 +1,1 @@
+(centerX + (self.x - player.x), centerY + (self.y - player.y))
