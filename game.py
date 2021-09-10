@@ -6,8 +6,9 @@ import random
 import os
 import json
 
+from mapGeneration import *
 
-sourceFileDir = os.path.dirname(os.path.abspath(__file__))
+sourceFileDir = os.path.dirname(os.path.abspath(__file__)) + "/sprites/"
 
 flags =  DOUBLEBUF
 
@@ -17,13 +18,29 @@ clock = pygame.time.Clock()
 keys = pygame.key.get_pressed()
 
 displayWidth = 1200
-displayHeight = 750
+displayHeight = 840
 centerX = displayWidth/2
 centerY = displayHeight/2
-tileSize = 50
+tileSize = 30
+
+mapWidth = 60 #number of tiles
+mapHeight = 48 
 
 gameDisplay = pygame.display.set_mode((displayWidth, displayHeight), flags)
-backgroundImage = pygame.image.load(os.path.join(sourceFileDir,"background.png")).convert()
+
+backgroundSurface = pygame.Surface((mapWidth * tileSize, mapHeight * tileSize))
+
+backgroundImage = pygame.image.load(os.path.join(sourceFileDir, "floor.png")).convert()
+backgroundWidth = backgroundImage.get_width()
+backgroundHeight = backgroundImage.get_height()
+
+for x in range(0, mapWidth * tileSize, backgroundWidth):
+    for y in range(0, mapHeight * tileSize, backgroundHeight):
+        backgroundSurface.blit(backgroundImage, (x, y))
+
+backgroundSurface = backgroundSurface.convert()
+backgroundSurfaceWidth = backgroundSurface.get_width()
+backgroundSurfaceHeight = backgroundSurface.get_height()
 
 enemies = []
 tiles = []
@@ -92,8 +109,6 @@ class Player():
         if self.velocityX > -self.speed and (keys[pygame.K_LEFT] or keys[pygame.K_a]):
             self.velocityX -= acceleration
 
-        print(self.x, self.y)
-
         '''for tile in tiles:
             if self.rect.colliderect(tile.rect):
                 self.velocityX = 0
@@ -102,20 +117,22 @@ class Player():
         self.x += self.velocityX #move x, then check for collisions horizontally, then move y and check for collisions vertically
 
         for tile in tiles:
-            if rectCollisionCheck(self, tile):
-                if self.velocityX > 0:
-                    self.x = tile.x - self.width/2 - tile.width/2
-                if self.velocityX < 0:
-                    self.x = tile.x + self.width/2 + tile.width/2
+            if tile.enabled:
+                if rectCollisionCheck(self, tile):
+                    if self.velocityX > 0:
+                        self.x = tile.x - self.width/2 - tile.width/2
+                    if self.velocityX < 0:
+                        self.x = tile.x + self.width/2 + tile.width/2
 
         self.y += self.velocityY
 
         for tile in tiles:
-            if rectCollisionCheck(self, tile):
-                if self.velocityY > 0:
-                    self.y = tile.y - self.height/2 - tile.height/2
-                if self.velocityY < 0:
-                    self.y = tile.y + self.height/2 + tile.height/2
+            if tile.enabled:
+                if rectCollisionCheck(self, tile):
+                    if self.velocityY > 0:
+                        self.y = tile.y - self.height/2 - tile.height/2
+                    if self.velocityY < 0:
+                        self.y = tile.y + self.height/2 + tile.height/2
 
     def update(self):
         self.updatePhysics()
@@ -130,8 +147,13 @@ class Player():
                 enemy.health -= damage
                 knockbackX = math.cos(math.radians(angle))
                 knockbackY = -math.sin(math.radians(angle))
-                enemy.velocityX = 7 * knockbackX
-                enemy.velocityY = 7 * knockbackY
+                enemy.velocityX = 20 * knockbackX
+                enemy.velocityY = 20 * knockbackY
+
+    def takeDamage(self, damage):
+        self.health -= damage
+        if self.health <= 0:
+            self.health = 0
 
 class Projectile():
     def __init__(self, x, y, directionX, directionY, speed):
@@ -152,31 +174,48 @@ class Projectile():
         projectiles.append(self)
 
     def update(self):
+        displayX = centerX + (self.x - player.x) - self.width/2
+        displayY = centerY + (self.y - player.y) - self.height/2
+        if not (displayWidth + 100 > displayX > -100 and displayHeight + 100 > displayY > -100):
+            projectiles.remove(self)
+            del self
+            return
         self.x += self.velocityX
         self.y += self.velocityY
         for tile in tiles:
             if pointCollisionCheck(self, tile):
                 projectiles.remove(self)
+                del self
+                return 
+        for enemy in enemies:
+            if pointCollisionCheck(self, enemy):
+                projectiles.remove(self)
+                enemy.takeDamage(10)
+                del self
+                return 
         #gameDisplay.blit(self.image, (centerX - player.rect.width/2 + (self.rect.centerx - player.rect.x), centerY - player.rect.height/2 + (self.rect.centery - player.rect.y)))
         #pygame.draw.circle(gameDisplay, (90, 0, 0), (int(centerX - player.rect.width/2 + (self.rect.centerx - player.rect.x)), int(centerY - player.rect.height/2 + (self.rect.centery - player.rect.y))), 5)
-        gameDisplay.blit(self.image, (centerX + (self.x - player.x) - self.width/2, centerY + (self.y - player.y) - self.height/2))
+        gameDisplay.blit(self.image, (displayX, displayY))
 
 
 class Tile():
-    def __init__(self, x, y):
-        self.image = pygame.image.load(os.path.join(sourceFileDir,"tile.png"))
+    def __init__(self, x, y, image, width = tileSize, height = tileSize, border = False):
+        self.image = pygame.image.load(os.path.join(sourceFileDir, image + ".png"))
         self.x = x
         self.y = y
-        self.width = tileSize
-        self.height = tileSize
+        self.width = width
+        self.height = height
+        self.border = border
+        self.enabled = False
         tiles.append(self)
     def update(self):
-        gameDisplay.blit(self.image, (centerX + (self.x - player.x) - self.width/2, centerY + (self.y - player.y) - self.height/2))
+        self.enabled = False
+        displayX = centerX + (self.x - player.x) - self.width/2
+        displayY = centerY + (self.y - player.y) - self.height/2
+        if self.border or (displayWidth + 100 > displayX > -100 and displayHeight + 100 > displayY > -100):
+            self.enabled = True
+            gameDisplay.blit(self.image, (displayX, displayY))
 
-    '''displayX = centerX + (self. rect.x - player.rect.x)
-    displayY = centerY + (self.rect.y - player.rect.x)
-    if displayWidth > displayX > 0 and displayHeight > displayY > 0:
-        gameDisplay.blit(self.image, (displayX, displayY))'''
 
 class Enemy():
     def __init__(self, x, y):
@@ -217,44 +256,76 @@ class Enemy():
         self.x += self.velocityX #move x, then check for collisions horizontally, then move y and check for collisions vertically
 
         for tile in tiles:
-            if rectCollisionCheck(self, tile):
-                if self.velocityX > 0:
-                    self.x = tile.x - self.width/2 - tile.width/2
-                if self.velocityX < 0:
-                    self.x = tile.x + self.width/2 + tile.width/2
+            if tile.enabled:    
+                if rectCollisionCheck(self, tile):
+                    if self.velocityX > 0:
+                        self.x = tile.x - self.width/2 - tile.width/2
+                    if self.velocityX < 0:
+                        self.x = tile.x + self.width/2 + tile.width/2
 
         self.y += self.velocityY
 
         for tile in tiles:
-            if rectCollisionCheck(self, tile):
-                if self.velocityY > 0:
-                    self.y = tile.y - self.height/2 - tile.height/2
-                if self.velocityY < 0:
-                    self.y = tile.y + self.height/2 + tile.height/2
+            if tile.enabled:    
+                if rectCollisionCheck(self, tile):
+                    if self.velocityY > 0:
+                        self.y = tile.y - self.height/2 - tile.height/2
+                    if self.velocityY < 0:
+                        self.y = tile.y + self.height/2 + tile.height/2
+
+        if rectCollisionCheck(self, player):
+            player.takeDamage(10)
 
     def update(self):
-        self.updatePhysics()
+        displayX = centerX + (self.x - player.x) - self.width/2
+        displayY = centerY + (self.y - player.y) - self.height/2
+        if displayWidth + 100 > displayX > -100 and displayHeight + 100 > displayY > -100:
+            self.updatePhysics()
 
-        if pygame.time.get_ticks() >= self.idleTimer:
-            self.idleTimer += 3000
-            if self.directionX == 0 and self.directionY == 0:
-                self.directionX = random.randint(-1, 1)
-                self.directionY = random.randint(-1, 1)
-            else:
-                self.directionX = 0
-                self.directionY = 0
+            '''if pygame.time.get_ticks() >= self.idleTimer:
+                self.idleTimer += 3000
+                if self.directionX == 0 and self.directionY == 0:
+                    self.directionX = random.randint(-1, 1)
+                    self.directionY = random.randint(-1, 1)
+                else:
+                    self.directionX = 0
+                    self.directionY = 0'''
 
-        self.angle = -math.degrees(math.atan2(self.velocityY, self.velocityX))
-        newImage = pygame.transform.rotate(self.image, self.angle)
-        gameDisplay.blit(newImage, (centerX + (self.x - player.x) - self.width/2, centerY + (self.y - player.y) - self.height/2))
+            magnitude = math.sqrt((player.x - self.x) ** 2 + (player.y - self.y) ** 2)
+            self.directionX = (player.x - self.x) / magnitude
+            self.directionY = (player.y - self.y) / magnitude
 
+            self.angle = -math.degrees(math.atan2(self.velocityY, self.velocityX))
+            newImage = pygame.transform.rotate(self.image, self.angle)
+            gameDisplay.blit(newImage, (displayX, displayY))
 
-player = Player(400, 400)
+    def takeDamage(self, damage):
+        self.health -= damage
+        if self.health <= 0:
+            enemies.remove(self)
+            del self 
+            return
 
-tile = Tile(500, 500)
-tile2 = Tile(600, 600)
-tile3 = Tile(700, 700)
-enemy = Enemy(300, 400)
+map = generateMap(60, 48, 10, 6, 16)
+
+for y, row in enumerate(map):
+    posY = y * 30
+    for x, char in enumerate(row):
+        posX = x * 30
+        if char == "W":
+            Tile(posX, posY, "wall")
+        if char == "C":
+            Tile(posX, posY, "crate")        
+        if char == "S":
+            player = Player(posX, posY)
+        if char == "E":
+            Enemy(posX, posY)
+
+Tile(-300, tileSize * mapHeight / 2, "verticalBorder", 600, 2280, True)
+Tile(tileSize * mapWidth + 285, tileSize * mapHeight / 2, "verticalBorder", 600, 2280, True)
+Tile(tileSize * mapHeight / 2, -210, "horizontalBorder", 2400, 420, True)
+Tile(tileSize * mapHeight / 2, tileSize * mapHeight + 195, "horizontalBorder", 2400, 420, True)
+
 
 while True:
     keys = pygame.key.get_pressed()
@@ -278,7 +349,10 @@ while True:
     mouseX, mouseY = pygame.mouse.get_pos()
     player.angle = math.degrees(math.atan2(-(mouseY - centerY), mouseX - centerX))
 
-    gameDisplay.blit(backgroundImage, (0, 0))
+    displayX = centerX - player.x
+    displayY = centerY - player.y
+    gameDisplay.blit(backgroundSurface, (displayX, displayY))
+
     player.update()
     for tile in tiles:
         tile.update()
@@ -286,12 +360,30 @@ while True:
         enemy.update()
     for projectile in projectiles:
         projectile.update()
+
+    displayText("health: " + str(max(player.health, 0)), 50, 50)
+
+
     pygame.display.update()
+
+
     #print(clock.get_fps())
+
+
+    clock.tick(60)
+
+while True:
+    for event in pygame.event.get():
+        if event.type == pygame.QUIT:
+            pygame.quit()
+            quit()
+    displayText("You have died, close the program", 400, 450)
+    pygame.display.update()
 
 
 
     clock.tick(60)
+
 
 pygame.quit()
 quit()

@@ -1,1 +1,1 @@
-(centerX + (self.x - player.x), centerY + (self.y - player.y))
+for tile in tiles
