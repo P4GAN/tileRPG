@@ -8,6 +8,9 @@ import json
 
 from mapGeneration import *
 
+green = (0, 255, 0)
+red = (255, 0, 0)
+
 sourceFileDir = os.path.dirname(os.path.abspath(__file__)) + "/sprites/"
 
 flags =  DOUBLEBUF
@@ -21,10 +24,12 @@ displayWidth = 1200
 displayHeight = 840
 centerX = displayWidth/2
 centerY = displayHeight/2
-tileSize = 30
+tileSize = 60
 
 mapWidth = 60 #number of tiles
 mapHeight = 48 
+
+playerLevel = 1
 
 gameDisplay = pygame.display.set_mode((displayWidth, displayHeight), flags)
 
@@ -33,6 +38,17 @@ backgroundSurface = pygame.Surface((mapWidth * tileSize, mapHeight * tileSize))
 backgroundImage = pygame.image.load(os.path.join(sourceFileDir, "floor.png")).convert()
 backgroundWidth = backgroundImage.get_width()
 backgroundHeight = backgroundImage.get_height()
+
+playerArrowImage = pygame.image.load(os.path.join(sourceFileDir, "playerArrow.png"))
+enemyArrowImage = pygame.image.load(os.path.join(sourceFileDir, "enemyArrow.png"))
+fireballImage = pygame.image.load(os.path.join(sourceFileDir, "fireball.png"))
+
+zombieEnemyImage = pygame.image.load(os.path.join(sourceFileDir, "zombie.png"))
+skeletonEnemyImage = pygame.image.load(os.path.join(sourceFileDir, "skeleton.png"))
+wizardEnemyImage = pygame.image.load(os.path.join(sourceFileDir, "wizard.png"))
+
+wallImage = pygame.image.load(os.path.join(sourceFileDir, "wall.png")).convert()
+crateImage = pygame.image.load(os.path.join(sourceFileDir, "crate.png")).convert()
 
 for x in range(0, mapWidth * tileSize, backgroundWidth):
     for y in range(0, mapHeight * tileSize, backgroundHeight):
@@ -46,15 +62,24 @@ enemies = []
 tiles = []
 projectiles = []
 
-font = pygame.font.SysFont('Comic Sans MS', 50)
+font = pygame.font.SysFont('Comic Sans MS', 30)
 
 friction = 0.5
 acceleration = 1
 
 
 def displayText(text, x, y):
-    surface = font.render(text, True, (0, 0, 0))
+    surface = font.render(text, True, (255, 255, 255))
     gameDisplay.blit(surface, (x, y))
+
+def displayBar(x, y, color1, color2, score, maxScore, width, height):
+    largeRect = pygame.Rect(x, y, width, height)
+    smallRectWidth = width * (score / maxScore)
+    smallRect = pygame.Rect(x, y, smallRectWidth, height)
+
+    pygame.draw.rect(gameDisplay, color2, largeRect)
+    pygame.draw.rect(gameDisplay, color1, smallRect)
+
 
 def pointCollisionCheck(pointObject, rectObject):
     return rectObject.x - rectObject.width/2 < pointObject.x < rectObject.x + rectObject.width/2 and rectObject.y - rectObject.height/2 < pointObject.y < rectObject.y + rectObject.height/2
@@ -84,7 +109,10 @@ class Player():
         self.width = self.image.get_width()
         self.height = self.image.get_height()
         self.angle = 0
-        self.health = 100
+        self.health = 50 * playerLevel
+        self.maxHealth = 50 * playerLevel
+        self.attackTimer = 0
+        self.slashImage = pygame.image.load(os.path.join(sourceFileDir, "slash.png"))
     
     def updatePhysics(self):
         if self.velocityY > 0:
@@ -140,11 +168,40 @@ class Player():
         newImage = pygame.transform.rotate(self.image, self.angle)
         newRect = newImage.get_rect(center = (centerX, centerY))
         gameDisplay.blit(newImage, newRect)
-    
+
+        if portal:
+            magnitude = math.sqrt((portal.y - self.y) ** 2 + (portal.x - self.x) ** 2)
+            offsetX = (portal.x - self.x)/magnitude
+            offsetY = (portal.y - self.y)/magnitude
+
+            arrowPositionX = centerX + offsetX * 40
+            arrowPositionY = centerY + offsetY * 40
+
+            angle = math.degrees(math.atan2(-offsetY, offsetX))
+
+            newImage = pygame.transform.rotate(pygame.image.load(os.path.join(sourceFileDir, "arrow.png")), angle)
+            newRect = newImage.get_rect(center = (arrowPositionX, arrowPositionY))
+            gameDisplay.blit(newImage, newRect)
+
+        if pygame.time.get_ticks() <= self.attackTimer:
+            mouseX, mouseY = pygame.mouse.get_pos()
+
+            magnitude = math.sqrt((mouseY - centerY) ** 2 + (mouseX - centerX) ** 2)
+            offsetX = (mouseX - centerX)/magnitude
+            offsetY = (mouseY - centerY)/magnitude
+
+            slashPositionX = centerX + offsetX * 30
+            slashPositionY = centerY + offsetY * 30
+
+            newImage = pygame.transform.rotate(pygame.image.load(os.path.join(sourceFileDir, "slash.png")), self.angle)
+            newRect = newImage.get_rect(center = (slashPositionX, slashPositionY))
+            gameDisplay.blit(newImage, newRect)
+
     def meleeAttack(self, angle, attackRange, damage):
+        self.attackTimer = pygame.time.get_ticks() + 500
         for enemy in enemies:
             if (enemy.x - player.x) ** 2 + (enemy.y - player.y) ** 2 < attackRange ** 2:
-                enemy.health -= damage
+                enemy.takeDamage(damage)
                 knockbackX = math.cos(math.radians(angle))
                 knockbackY = -math.sin(math.radians(angle))
                 enemy.velocityX = 20 * knockbackX
@@ -156,14 +213,14 @@ class Player():
             self.health = 0
 
 class Projectile():
-    def __init__(self, x, y, directionX, directionY, speed):
+    def __init__(self, x, y, directionX, directionY, speed, image, owner):
 
         magnitude = math.sqrt(directionX ** 2 + directionY ** 2)
         directionX = directionX / magnitude
         directionY = directionY / magnitude
 
         self.angle = -math.atan2(directionY, directionX)
-        self.image = pygame.transform.rotate(pygame.image.load(os.path.join(sourceFileDir,"projectile.png")), math.degrees(self.angle))
+        self.image = pygame.transform.rotate(image, math.degrees(self.angle))
         self.speed = speed
         self.velocityX = self.speed * directionX
         self.velocityY = self.speed * directionY
@@ -171,6 +228,7 @@ class Projectile():
         self.y = y
         self.width = self.image.get_width()
         self.height = self.image.get_height()
+        self.owner = owner
         projectiles.append(self)
 
     def update(self):
@@ -187,10 +245,21 @@ class Projectile():
                 projectiles.remove(self)
                 del self
                 return 
-        for enemy in enemies:
-            if pointCollisionCheck(self, enemy):
+        if self.owner == "player":
+            for enemy in enemies:
+                if pointCollisionCheck(self, enemy):
+                    enemy.velocityX = self.velocityX
+                    enemy.velocityY = self.velocityY
+                    projectiles.remove(self)
+                    enemy.takeDamage(10)
+                    del self
+                    return 
+        elif self.owner == "enemy":
+            if pointCollisionCheck(self, player):
+                player.velocityX = self.velocityX
+                player.velocityY = self.velocityY
                 projectiles.remove(self)
-                enemy.takeDamage(10)
+                player.takeDamage(10)
                 del self
                 return 
         #gameDisplay.blit(self.image, (centerX - player.rect.width/2 + (self.rect.centerx - player.rect.x), centerY - player.rect.height/2 + (self.rect.centery - player.rect.y)))
@@ -200,7 +269,7 @@ class Projectile():
 
 class Tile():
     def __init__(self, x, y, image, width = tileSize, height = tileSize, border = False):
-        self.image = pygame.image.load(os.path.join(sourceFileDir, image + ".png"))
+        self.image = image
         self.x = x
         self.y = y
         self.width = width
@@ -216,10 +285,24 @@ class Tile():
             self.enabled = True
             gameDisplay.blit(self.image, (displayX, displayY))
 
+class Portal():
+    def __init__(self, x, y):
+        self.image = pygame.image.load(os.path.join(sourceFileDir, "portal.png"))
+        self.x = x
+        self.y = y
+        self.width = self.image.get_width()
+        self.height = self.image.get_height()
+
+    def update(self):
+
+        displayX = centerX + (self.x - player.x) - self.width/2
+        displayY = centerY + (self.y - player.y) - self.height/2
+
+        gameDisplay.blit(self.image, (displayX, displayY))
 
 class Enemy():
-    def __init__(self, x, y):
-        self.image = pygame.image.load(os.path.join(sourceFileDir,"enemy.png"))
+    def __init__(self, x, y, image, type):
+        self.image = image
         self.x = x
         self.y = y
         self.width = self.image.get_width()
@@ -228,9 +311,10 @@ class Enemy():
         self.velocityY = 0
         self.speed = 3
         self.angle = 0
-        self.moveMode = "idle"
-        self.idleTimer = 0
-        self.health = 50
+        self.type = type
+        self.health = 30
+        self.attackCooldown = 1500
+        self.attackTimer = 0
         self.directionX = 0
         self.directionY = 0
         enemies.append(self)
@@ -273,8 +357,6 @@ class Enemy():
                     if self.velocityY < 0:
                         self.y = tile.y + self.height/2 + tile.height/2
 
-        if rectCollisionCheck(self, player):
-            player.takeDamage(10)
 
     def update(self):
         displayX = centerX + (self.x - player.x) - self.width/2
@@ -282,22 +364,39 @@ class Enemy():
         if displayWidth + 100 > displayX > -100 and displayHeight + 100 > displayY > -100:
             self.updatePhysics()
 
-            '''if pygame.time.get_ticks() >= self.idleTimer:
-                self.idleTimer += 3000
-                if self.directionX == 0 and self.directionY == 0:
+            magnitude = math.sqrt((player.x - self.x) ** 2 + (player.y - self.y) ** 2)
+
+            if self.type == "zombie":
+                self.directionX = (player.x - self.x) / magnitude
+                self.directionY = (player.y - self.y) / magnitude
+
+                if rectCollisionCheck(self, player):
+                    if pygame.time.get_ticks() >= self.attackTimer:
+                        knockbackX = math.cos(math.radians(self.angle))
+                        knockbackY = -math.sin(math.radians(self.angle))
+                        player.velocityX = 20 * knockbackX
+                        player.velocityY = 20 * knockbackY
+                        self.attackTimer = pygame.time.get_ticks() + self.attackCooldown
+                        player.takeDamage(10)
+
+            if self.type == "wizard" or self.type == "skeleton":
+                if random.random() >= 0.9:
                     self.directionX = random.randint(-1, 1)
                     self.directionY = random.randint(-1, 1)
-                else:
-                    self.directionX = 0
-                    self.directionY = 0'''
-
-            magnitude = math.sqrt((player.x - self.x) ** 2 + (player.y - self.y) ** 2)
-            self.directionX = (player.x - self.x) / magnitude
-            self.directionY = (player.y - self.y) / magnitude
+                if pygame.time.get_ticks() >= self.attackTimer:
+                    self.attackTimer = pygame.time.get_ticks() + self.attackCooldown
+                    directionX = (player.x - self.x) / magnitude
+                    directionY = (player.y - self.y) / magnitude
+                    if self.type == "wizard":
+                        Projectile(self.x, self.y, directionX, directionY, 13, enemyArrowImage, "enemy")                    
+                    if self.type == "skeleton":
+                        Projectile(self.x, self.y, directionX, directionY, 13, fireballImage, "enemy")
 
             self.angle = -math.degrees(math.atan2(self.velocityY, self.velocityX))
             newImage = pygame.transform.rotate(self.image, self.angle)
             gameDisplay.blit(newImage, (displayX, displayY))
+
+            displayBar(displayX, displayY + 20, green, red, self.health, 30, self.width, 5)
 
     def takeDamage(self, damage):
         self.health -= damage
@@ -306,28 +405,48 @@ class Enemy():
             del self 
             return
 
-map = generateMap(60, 48, 10, 6, 16)
+def randomGeneration():
 
-for y, row in enumerate(map):
-    posY = y * 30
-    for x, char in enumerate(row):
-        posX = x * 30
-        if char == "W":
-            Tile(posX, posY, "wall")
-        if char == "C":
-            Tile(posX, posY, "crate")        
-        if char == "S":
-            player = Player(posX, posY)
-        if char == "E":
-            Enemy(posX, posY)
+    gameMap = generateMap(60, 48, 10, 6, 16)
 
-Tile(-300, tileSize * mapHeight / 2, "verticalBorder", 600, 2280, True)
-Tile(tileSize * mapWidth + 285, tileSize * mapHeight / 2, "verticalBorder", 600, 2280, True)
-Tile(tileSize * mapHeight / 2, -210, "horizontalBorder", 2400, 420, True)
-Tile(tileSize * mapHeight / 2, tileSize * mapHeight + 195, "horizontalBorder", 2400, 420, True)
+    for y, row in enumerate(gameMap):
+        posY = y * tileSize
+        for x, char in enumerate(row):
+            posX = x * tileSize
+            if char == "W":
+                Tile(posX, posY, wallImage)
+            if char == "C":
+                Tile(posX, posY, crateImage)        
+            if char == "S":
+                player = Player(posX, posY)
+            if char == "E":
+                rand = random.random()
+                if rand > 0.5:
+                    enemyImage = zombieEnemyImage
+                    enemyType = "zombie"
+                elif rand < 0.25:
+                    enemyImage = skeletonEnemyImage
+                    enemyType = "skeleton"
+                else:
+                    enemyImage = wizardEnemyImage
+                    enemyType = "wizard"
+                Enemy(posX, posY, enemyImage, enemyType)
+
+            if char == "F":
+                portal = Portal(posX, posY)
+
+    Tile(-displayWidth / 4, tileSize * mapHeight / 2, pygame.image.load(os.path.join(sourceFileDir, "verticalBorder.png")), 600, 3720, True)
+    Tile(tileSize * mapWidth + displayHeight / 4 - tileSize / 2, tileSize * mapHeight / 2, pygame.image.load(os.path.join(sourceFileDir, "verticalBorder.png")), 600, 3720, True)
+    Tile(tileSize * mapHeight / 2, -displayHeight / 4, pygame.image.load(os.path.join(sourceFileDir, "horizontalBorder.png")), 4800, 420, True)
+    Tile(tileSize * mapHeight / 2, tileSize * mapHeight + displayHeight / 4 - tileSize / 2, pygame.image.load(os.path.join(sourceFileDir, "horizontalBorder.png")), 4800, 420, True)
+
+    return player, portal
+
+player, portal = randomGeneration()
 
 
-while True:
+
+while player.health > 0:
     keys = pygame.key.get_pressed()
 
 
@@ -338,10 +457,10 @@ while True:
         if event.type == pygame.KEYDOWN:
             if event.key == pygame.K_LSHIFT:
                 player.speed *= 2
-            if event.key == pygame.K_p:
-                Projectile(player.x, player.y, mouseX - centerX, mouseY - centerY, 10)
+            if event.key == pygame.K_SPACE:
+                player.meleeAttack(player.angle, 100, 15)
         if event.type == pygame.MOUSEBUTTONDOWN:
-            player.meleeAttack(player.angle, 100, 2)
+            Projectile(player.x, player.y, mouseX - centerX, mouseY - centerY, 20, playerArrowImage, "player")
 
         if event.type == pygame.KEYUP:
             if event.key == pygame.K_LSHIFT:
@@ -354,6 +473,15 @@ while True:
     gameDisplay.blit(backgroundSurface, (displayX, displayY))
 
     player.update()
+    portal.update()
+
+    if rectCollisionCheck(portal, player):
+        playerLevel += 1
+        tiles = []
+        enemies = []
+        projectiles = []
+        player, portal = randomGeneration()
+
     for tile in tiles:
         tile.update()
     for enemy in enemies:
@@ -361,13 +489,13 @@ while True:
     for projectile in projectiles:
         projectile.update()
 
-    displayText("health: " + str(max(player.health, 0)), 50, 50)
-
+    displayText("Health", 25, 25)
+    displayBar(25, 50, green, red, player.health, player.maxHealth, 200, 20)
 
     pygame.display.update()
 
 
-    #print(clock.get_fps())
+    print(clock.get_fps())
 
 
     clock.tick(60)
